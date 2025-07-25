@@ -61,28 +61,33 @@ persistent actor {
         userProfiles := principalMap.put(userProfiles, caller, profile);
     };
 
- // In any public-facing system, we must restrict access based on the user's role.
-// Below are examples of how you can enforce permission logic based on different cases:
+// Authorization Strategy
 //
-// * For admin-exclusive actions:
+// Public functions in this system must be protected by permission checks.
+// Use the following patterns based on the desired access control level:
+//
+// - To restrict to administrators:
 //   if (not (MultiUserSystem.hasPermission(multiUserState, caller, #admin, true))) {
 //       Debug.trap("Unauthorized: Only approved users and admins delete data");
 //   };
 //
-// * For users who’ve been explicitly approved:
+// - For approved (whitelisted) users only:
 //   if (not (MultiUserSystem.hasPermission(multiUserState, caller, #user, true))) {
 //       Debug.trap("Unauthorized: Only approved users and admins delete data");
 //   };
 //
-// * For any authenticated user (approval not required):
+// - For any signed-in principal (does not require whitelist):
 //   if (not (MultiUserSystem.hasPermission(multiUserState, caller, #user, false))) {
 //       Debug.trap("Unauthorized: Only approved users and admins delete data");
 //   };
 //
-// * For completely open access including guests: simply skip permission checks.
+// - For open/public access: skip the check entirely.
 
 
-// TURN Provider Management
+// TURN Provider Information
+//
+// This type defines all the key properties of TURN relayers registered in the system.
+// It includes technical details, performance stats, and operator info.
 public type TurnProvider = {
     id : Text;
     name : Text;
@@ -99,11 +104,14 @@ public type TurnProvider = {
     isVerified : Bool;
     isActive : Bool;
     securityScore : Nat;
+    lastSeen : Time.Time;
+    owner : Principal;
 };
 
 
-// This structure logs each time a user interacts with a TURN server.
-// It helps maintain transparency and accountability over relayer usage.
+// TURN Session Tracking Type
+//
+// We log each TURN usage by recording who connected, to which server, and when.
 public type TurnServerUsage = {
     serverUrl : Text;
     timestamp : Time.Time;
@@ -112,14 +120,18 @@ public type TurnServerUsage = {
 };
 
 
-// A transient in-memory map is used to store the TURN session usage records.
-// It's suitable for quick access and testing; not meant for durable storage.
+// In-memory Session Store
+//
+// A transient map that holds session records keyed by sessionId.
+// This is ideal for fast access but not meant for long-term durability.
 transient let textMap = OrderedMap.Make<Text>(Text.compare);
 var turnServerUsages = textMap.empty<TurnServerUsage>();
 
 
-// Whenever a user connects through a TURN server, we record the usage.
-// This function is only allowed for users that were granted explicit access.
+// Record Usage of a TURN Server
+//
+// Called by an approved user when they initiate a TURN session.
+// The function logs metadata for future tracking, billing, or analysis.
 public shared ({ caller }) func logTurnServerUsage(serverUrl : Text, sessionId : Text) : async () {
     if (not (MultiUserSystem.hasPermission(multiUserState, caller, #user, true))) {
         Debug.trap("Unauthorized: Only approved users can log TURN server usage");
@@ -136,8 +148,10 @@ public shared ({ caller }) func logTurnServerUsage(serverUrl : Text, sessionId :
 };
 
 
-// Approved users can fetch the usage entry for a specific session.
-// This supports verifying their own TURN server activity.
+// Retrieve a Specific Session Log
+//
+// Enables an approved user to fetch the usage details of a given session.
+// Important for verifying personal usage or debugging behavior.
 public query ({ caller }) func getTurnServerUsage(sessionId : Text) : async ?TurnServerUsage {
     if (not (MultiUserSystem.hasPermission(multiUserState, caller, #user, true))) {
         Debug.trap("Unauthorized: Only approved users can view TURN server usage");
@@ -147,8 +161,10 @@ public query ({ caller }) func getTurnServerUsage(sessionId : Text) : async ?Tur
 };
 
 
-// For administrators, this function provides access to all recorded usage logs.
-// Useful for monitoring system-wide TURN activity or billing.
+// Admin-Only View of All Sessions
+//
+// Returns all recorded TURN server usages.
+// Access to this data is limited to admins for auditing or network-wide insights.
 public query ({ caller }) func getAllTurnServerUsages() : async [TurnServerUsage] {
     if (not (MultiUserSystem.hasPermission(multiUserState, caller, #admin, true))) {
         Debug.trap("Unauthorized: Only admins can view all TURN server usages");
@@ -156,6 +172,126 @@ public query ({ caller }) func getAllTurnServerUsages() : async [TurnServerUsage
 
     Array.map<(Text, TurnServerUsage), TurnServerUsage>(
         Iter.toArray(textMap.entries(turnServerUsages)),
+        func((k, v)) = v,
+    );
+};
+
+// TURN Provider Registry (In-Memory Map)
+//
+// This map holds all TURN providers currently registered by users.
+// Each entry is keyed by the provider's ID.
+var turnProviders = textMap.empty<TurnProvider>();
+
+
+// Billing and Token Management
+//
+// We define the structure of a billing event, including session times, pricing,
+// calculated costs, and how revenue is split between the provider and protocol.
+public type BillingRecord = {
+    sessionId : Text;
+    user : Principal;
+    providerId : Text;
+    startTime : Time.Time;
+    endTime : Time.Time;
+    durationMinutes : Float;
+    costPerMinute : Float;
+    totalCost : Float;
+    providerEarnings : Float;
+    protocolFee : Float;
+};
+
+
+// This map holds all billing records keyed by sessionId.
+// Since it's transient, it's suitable for testing or short-lived tracking.
+var billingRecords = textMap.empty<BillingRecord>();
+
+
+// Create a New Billing Entry
+//
+// When a session completes, the client can call this to log payment breakdowns.
+// The function calculates total usage time, cost, fee split, and stores the result.
+public shared ({ caller }) func recordBilling(
+    sessionId : Text,
+    providerId : Text,
+    startTime : Time.Time,
+    endTime : Time.Time,
+    costPerMinute : Float,
+) : async () {
+    if (not (MultiUserSystem.hasPermission(multiUserState, caller, #user, true))) {
+        Debug.trap("Unauthorized: Only approved users can record billing");
+    };
+
+    let durationNanos = Float.fromInt(Int.abs(endTime - startTime));
+    let durationMinutes = durationNanos / (60.0 * 1_000_000_000.0);
+    let totalCost = durationMinutes * costPerMinute;
+    let providerEarnings = totalCost * 0.9;
+    let protocolFee = totalCost * 0.1;
+
+    let record : BillingRecord = {
+        sessionId = sessionId;
+        user = caller;
+        providerId = providerId;
+        startTime = startTime;
+        endTime = endTime;
+        durationMinutes = durationMinutes;
+        costPerMinute = costPerMinute;
+        totalCost = totalCost;
+        providerEarnings = providerEarnings;
+        protocolFee = protocolFee;
+    };
+
+    billingRecords := textMap.put(billingRecords, sessionId, record);
+};
+
+
+// TURN Provider Registration
+//
+// This function lets approved users register themselves as TURN providers.
+// Initial values are set to zero/defaults until updated through usage or verification.
+public shared ({ caller }) func registerTurnProvider(
+    id : Text,
+    name : Text,
+    url : Text,
+    publicKey : Text,
+    attestationHash : ?Text,
+    stakeAmount : Nat,
+    location : Text,
+) : async () {
+    if (not (MultiUserSystem.hasPermission(multiUserState, caller, #user, true))) {
+        Debug.trap("Unauthorized: Only approved users can register TURN providers");
+    };
+
+    let provider : TurnProvider = {
+        id = id;
+        name = name;
+        url = url;
+        publicKey = publicKey;
+        attestationHash = attestationHash;
+        stakeAmount = stakeAmount;
+        reputation = 0.0;
+        uptime = 0.0;
+        rating = 0.0;
+        totalSessions = 0;
+        totalEarnings = 0.0;
+        location = location;
+        isVerified = false;
+        isActive = false;
+        securityScore = 0;
+        lastSeen = Time.now();
+        owner = caller;
+    };
+
+    turnProviders := textMap.put(turnProviders, id, provider);
+};
+
+
+// Get All Registered TURN Providers
+//
+// This query function lists every TURN provider on record.
+// Can be used for listing in UI, provider selection, or verification tools.
+public query func getAllTurnProviders() : async [TurnProvider] {
+    Array.map<(Text, TurnProvider), TurnProvider>(
+        Iter.toArray(textMap.entries(turnProviders)),
         func((k, v)) = v,
     );
 };

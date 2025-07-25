@@ -295,4 +295,128 @@ public query func getAllTurnProviders() : async [TurnProvider] {
         func((k, v)) = v,
     );
 };
+  public query ({ caller }) func getBillingRecords() : async [BillingRecord] {
+       if (not (MultiUserSystem.hasPermission(multiUserState, caller, #user, true))) {
+           Debug.trap("Unauthorized: Only approved users can view billing records");
+       };
+
+
+       Array.map<(Text, BillingRecord), BillingRecord>(
+           Iter.toArray(textMap.entries(billingRecords)),
+           func((k, v)) = v,
+       );
+   };
+
+
+   // Room Management
+   public type Room = {
+       id : Text;
+       name : Text;
+       code : Text;
+       link : Text;
+       createdBy : Principal;
+       createdAt : Time.Time;
+       participants : [Principal];
+       isActive : Bool;
+       maxParticipants : Nat;
+   };
+
+
+   var rooms = textMap.empty<Room>();
+
+
+   public shared ({ caller }) func createRoom(
+       name : Text,
+       maxParticipants : Nat,
+   ) : async Room {
+       if (not (MultiUserSystem.hasPermission(multiUserState, caller, #user, true))) {
+           Debug.trap("Unauthorized: Only approved users can create rooms");
+       };
+
+
+       let roomId = Text.concat("room_", Int.toText(Time.now()));
+       let roomCode = Text.concat("CODE_", Int.toText(Time.now()));
+       let roomLink = Text.concat("https://turnx.network/room/", roomCode);
+
+
+       let newRoom : Room = {
+           id = roomId;
+           name = name;
+           code = roomCode;
+           link = roomLink;
+           createdBy = caller;
+           createdAt = Time.now();
+           participants = [caller];
+           isActive = true;
+           maxParticipants = maxParticipants;
+       };
+
+
+       rooms := textMap.put(rooms, roomId, newRoom);
+       newRoom;
+   };
+
+
+   public query func getAllRooms() : async [Room] {
+       Array.map<(Text, Room), Room>(
+           Iter.toArray(textMap.entries(rooms)),
+           func((k, v)) = v,
+       );
+   };
+
+
+   // Chat Management
+   public type ChatMessage = {
+       id : Text;
+       roomId : Text;
+       user : Principal;
+       message : Text;
+       timestamp : Time.Time;
+   };
+
+
+   var chatMessages = textMap.empty<ChatMessage>();
+
+
+   public shared ({ caller }) func sendMessage(
+       roomId : Text,
+       message : Text,
+   ) : async () {
+       if (not (MultiUserSystem.hasPermission(multiUserState, caller, #user, true))) {
+           Debug.trap("Unauthorized: Only approved users can send messages");
+       };
+
+
+       let messageId = Text.concat("msg_", Int.toText(Time.now()));
+
+
+       let newMessage : ChatMessage = {
+           id = messageId;
+           roomId = roomId;
+           user = caller;
+           message = message;
+           timestamp = Time.now();
+       };
+
+
+       chatMessages := textMap.put(chatMessages, messageId, newMessage);
+   };
+
+
+   public query func getRoomMessages(roomId : Text) : async [ChatMessage] {
+       var messages = List.nil<ChatMessage>();
+       for ((id, msg) in textMap.entries(chatMessages)) {
+           if (msg.roomId == roomId) {
+               messages := List.push(msg, messages);
+           };
+       };
+       List.toArray(messages);
+   };
+};
+
+
+
+
+
+
 

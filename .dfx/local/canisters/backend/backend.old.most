@@ -1,0 +1,93 @@
+// Version: 1.0.0
+type ApprovalStatus__613215938 = {#approved; #pending; #rejected};
+type BillingRecord__790946974 =
+  {
+    costPerMinute : Float;
+    durationMinutes : Float;
+    endTime : Time__91346527;
+    protocolFee : Float;
+    providerEarnings : Float;
+    providerId : Text;
+    sessionId : Text;
+    startTime : Time__91346527;
+    totalCost : Float;
+    user : Principal
+  };
+type ChatMessage__319796390 =
+  {
+    id : Text;
+    message : Text;
+    roomId : Text;
+    timestamp : Time__91346527;
+    user : Principal
+  };
+type Map__530694555<K, V> = {root : Tree__993059231<K, V>; size : Nat};
+type Room__132966082 =
+  {
+    code : Text;
+    createdAt : Time__91346527;
+    createdBy : Principal;
+    id : Text;
+    isActive : Bool;
+    link : Text;
+    maxParticipants : Nat;
+    name : Text;
+    participants : [Principal]
+  };
+type Time__91346527 = Int;
+type Tree__993059231<K, V> =
+  {
+    #black : (Tree__993059231<K, V>, K, V, Tree__993059231<K, V>);
+    #leaf;
+    #red : (Tree__993059231<K, V>, K, V, Tree__993059231<K, V>)
+  };
+type TurnProvider__658963786 =
+  {
+    attestationHash : ?Text;
+    id : Text;
+    isActive : Bool;
+    isVerified : Bool;
+    lastSeen : Time__91346527;
+    location : Text;
+    name : Text;
+    owner : Principal;
+    publicKey : Text;
+    rating : Float;
+    reputation : Float;
+    securityScore : Nat;
+    stakeAmount : Nat;
+    totalEarnings : Float;
+    totalSessions : Nat;
+    uptime : Float;
+    url : Text
+  };
+type TurnServerUsage__107734454 =
+  {
+    serverUrl : Text;
+    sessionId : Text;
+    timestamp : Time__91346527;
+    user : Principal
+  };
+type UserProfile__767538853 = {name : Text};
+type UserRole__241655812 = {#admin; #guest; #user};
+actor {
+  stable var billingRecords :
+    {root : Tree__993059231<Text, BillingRecord__790946974>; size : Nat};
+  stable var chatMessages :
+    {root : Tree__993059231<Text, ChatMessage__319796390>; size : Nat};
+  stable multiUserState :
+    {
+      var adminAssigned : Bool;
+      var approvalStatus :
+        Map__530694555<Principal, ApprovalStatus__613215938>;
+      var userRoles : Map__530694555<Principal, UserRole__241655812>
+    };
+  stable var rooms :
+    {root : Tree__993059231<Text, Room__132966082>; size : Nat};
+  stable var turnProviders :
+    {root : Tree__993059231<Text, TurnProvider__658963786>; size : Nat};
+  stable var turnServerUsages :
+    {root : Tree__993059231<Text, TurnServerUsage__107734454>; size : Nat};
+  stable var userProfiles :
+    {root : Tree__993059231<Principal, UserProfile__767538853>; size : Nat}
+};

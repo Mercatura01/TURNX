@@ -73,12 +73,14 @@ export type UserRole = { 'admin' : null } |
 export interface _SERVICE {
   'assignRole' : ActorMethod<[Principal, UserRole], undefined>,
   'createRoom' : ActorMethod<[string, bigint], Room>,
-  'getAllRooms' : ActorMethod<[], Array<Room>>,
   'getAllTurnProviders' : ActorMethod<[], Array<TurnProvider>>,
   'getAllTurnServerUsages' : ActorMethod<[], Array<TurnServerUsage>>,
+  'getAnswer' : ActorMethod<[string], [] | [string]>,
   'getApprovalStatus' : ActorMethod<[], ApprovalStatus>,
   'getBillingRecords' : ActorMethod<[], Array<BillingRecord>>,
+  'getCandidates' : ActorMethod<[string], Array<string>>,
   'getCurrentUserRole' : ActorMethod<[], UserRole>,
+  'getOffer' : ActorMethod<[string], [] | [string]>,
   'getRoomMessages' : ActorMethod<[string], Array<ChatMessage>>,
   'getTurnServerUsage' : ActorMethod<[string], [] | [TurnServerUsage]>,
   'getUserProfile' : ActorMethod<[], [] | [UserProfile]>,
@@ -90,13 +92,18 @@ export interface _SERVICE {
     [string, string, Time, Time, number],
     undefined
   >,
+  'registerPrincipal' : ActorMethod<[Principal], string>,
   'registerTurnProvider' : ActorMethod<
     [string, string, string, string, [] | [string], bigint, string],
     undefined
   >,
+  'registerUser' : ActorMethod<[], undefined>,
   'saveUserProfile' : ActorMethod<[UserProfile], undefined>,
   'sendMessage' : ActorMethod<[string, string], undefined>,
   'setApproval' : ActorMethod<[Principal, ApprovalStatus], undefined>,
+  'submitAnswer' : ActorMethod<[string, string], undefined>,
+  'submitCandidate' : ActorMethod<[string, string], undefined>,
+  'submitOffer' : ActorMethod<[string, string], undefined>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

@@ -74,16 +74,18 @@ export const idlFactory = ({ IDL }) => {
   return IDL.Service({
     'assignRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'createRoom' : IDL.Func([IDL.Text, IDL.Nat], [Room], []),
-    'getAllRooms' : IDL.Func([], [IDL.Vec(Room)], ['query']),
     'getAllTurnProviders' : IDL.Func([], [IDL.Vec(TurnProvider)], ['query']),
     'getAllTurnServerUsages' : IDL.Func(
         [],
         [IDL.Vec(TurnServerUsage)],
         ['query'],
       ),
+    'getAnswer' : IDL.Func([IDL.Text], [IDL.Opt(IDL.Text)], ['query']),
     'getApprovalStatus' : IDL.Func([], [ApprovalStatus], ['query']),
     'getBillingRecords' : IDL.Func([], [IDL.Vec(BillingRecord)], ['query']),
+    'getCandidates' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Text)], ['query']),
     'getCurrentUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getOffer' : IDL.Func([IDL.Text], [IDL.Opt(IDL.Text)], ['query']),
     'getRoomMessages' : IDL.Func([IDL.Text], [IDL.Vec(ChatMessage)], ['query']),
     'getTurnServerUsage' : IDL.Func(
         [IDL.Text],
@@ -100,6 +102,7 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'registerPrincipal' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'registerTurnProvider' : IDL.Func(
         [
           IDL.Text,
@@ -113,9 +116,13 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'registerUser' : IDL.Func([], [], []),
     'saveUserProfile' : IDL.Func([UserProfile], [], []),
     'sendMessage' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'setApproval' : IDL.Func([IDL.Principal, ApprovalStatus], [], []),
+    'submitAnswer' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'submitCandidate' : IDL.Func([IDL.Text, IDL.Text], [], []),
+    'submitOffer' : IDL.Func([IDL.Text, IDL.Text], [], []),
   });
 };
 export const init = ({ IDL }) => { return []; };

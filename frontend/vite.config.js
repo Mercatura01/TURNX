@@ -1,10 +1,16 @@
 import { defineConfig } from 'vite';
 import { fileURLToPath, URL } from 'url';
 import environment from 'vite-plugin-environment';
+import tailwindcss from '@tailwindcss/vite'; // ✅ Add this import
 
 export default defineConfig({
   base: './',
-  plugins: [environment('all', { prefix: 'CANISTER_' }), environment('all', { prefix: 'DFX_' })],
+  plugins: [
+    tailwindcss(), // ✅ Add this plugin
+    environment('all', { prefix: 'CANISTER_' }),
+    environment('all', { prefix: 'DFX_' }),
+    tailwindcss()
+  ],
   envDir: '../',
   define: {
     'process.env': process.env

@@ -8,9 +8,27 @@
     "dev": "vite"
   },
   "dependencies": {
-    "@dfinity/agent": "2.2.0"
+    "@dfinity/agent": "^3.0.0",
+    "@dfinity/auth-client": "^3.0.0",
+    "@dfinity/candid": "^3.0.0",
+    "@dfinity/identity": "^3.0.0",
+    "@dfinity/principal": "^3.0.0",
+    "@dfinity/use-auth-client": "^3.0.0",
+    "@tanstack/react-query": "^5.83.0",
+    "lucide-react": "^0.525.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.1.11",
+    "@tailwindcss/vite": "^4.1.11",
+    "@types/jest": "^30.0.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.11",
+    "typescript": "^5.8.3",
     "vite": "5.4.11",
     "vite-plugin-environment": "1.1.3"
   }

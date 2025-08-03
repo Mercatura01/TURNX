@@ -8,5 +8,8 @@
   "type": "module",
   "workspaces": [
     "frontend"
-  ]
+  ],
+  "dependencies": {
+    "@dfinity/principal": "^3.1.0"
+  }
 }

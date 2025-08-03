@@ -1,0 +1,197 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.WebAuthnIdentity = exports.CosePublicKey = void 0;
+const agent_1 = require("@dfinity/agent");
+const utils_1 = require("@noble/hashes/utils");
+const candid_1 = require("@dfinity/candid");
+function _coseToDerEncodedBlob(cose) {
+    return (0, agent_1.wrapDER)(cose, agent_1.DER_COSE_OID);
+}
+/**
+ * From the documentation;
+ * The authData is a byte array described in the spec. Parsing it will involve slicing bytes from
+ * the array and converting them into usable objects.
+ *
+ * See https://webauthn.guide/#registration (subsection "Example: Parsing the authenticator data").
+ * @param authData The authData field of the attestation response.
+ * @returns The COSE key of the authData.
+ */
+function _authDataToCose(authData) {
+    const dataView = new DataView(new ArrayBuffer(2));
+    const idLenBytes = authData.slice(53, 55);
+    [...new Uint8Array(idLenBytes)].forEach((v, i) => dataView.setUint8(i, v));
+    const credentialIdLength = dataView.getUint16(0);
+    // Get the public key object.
+    return authData.slice(55 + credentialIdLength);
+}
+class CosePublicKey {
+    constructor(_cose) {
+        this._cose = _cose;
+        this._encodedKey = _coseToDerEncodedBlob(_cose);
+    }
+    toDer() {
+        return this._encodedKey;
+    }
+    getCose() {
+        return this._cose;
+    }
+}
+exports.CosePublicKey = CosePublicKey;
+/**
+ * Create a challenge from a string or array. The default challenge is always the same
+ * because we don't need to verify the authenticity of the key on the server (we don't
+ * register our keys with the IC). Any challenge would do, even one per key, randomly
+ * generated.
+ * @param challenge The challenge to transform into a byte array. By default a hard
+ *        coded string.
+ */
+function _createChallengeBuffer(challenge = '<ic0.app>') {
+    if (typeof challenge === 'string') {
+        return Uint8Array.from(challenge, c => c.charCodeAt(0));
+    }
+    else {
+        return challenge;
+    }
+}
+/**
+ * Create a credentials to authenticate with a server. This is necessary in order in
+ * WebAuthn to get credentials IDs (which give us the public key and allow us to
+ * sign), but in the case of the Internet Computer, we don't actually need to register
+ * it, so we don't.
+ * @param credentialCreationOptions an optional CredentialCreationOptions object
+ */
+async function _createCredential(credentialCreationOptions) {
+    const creds = (await navigator.credentials.create(credentialCreationOptions ?? {
+        publicKey: {
+            authenticatorSelection: {
+                userVerification: 'preferred',
+            },
+            attestation: 'direct',
+            challenge: _createChallengeBuffer(),
+            pubKeyCredParams: [{ type: 'public-key', alg: PubKeyCoseAlgo.ECDSA_WITH_SHA256 }],
+            rp: {
+                name: 'Internet Identity Service',
+            },
+            user: {
+                id: (0, utils_1.randomBytes)(16),
+                name: 'Internet Identity',
+                displayName: 'Internet Identity',
+            },
+        },
+    }));
+    if (creds === null) {
+        return null;
+    }
+    return {
+        // do _not_ use ...creds here, as creds is not enumerable in all cases
+        id: creds.id,
+        response: creds.response,
+        type: creds.type,
+        authenticatorAttachment: creds.authenticatorAttachment,
+        getClientExtensionResults: creds.getClientExtensionResults,
+        // Some password managers will return a Uint8Array, so we ensure we return an ArrayBuffer.
+        rawId: creds.rawId,
+        toJSON: creds.toJSON.bind(creds), // Ensure the toJSON method is included
+    };
+}
+// See https://www.iana.org/assignments/cose/cose.xhtml#algorithms for a complete
+// list of these algorithms. We only list the ones we support here.
+var PubKeyCoseAlgo;
+(function (PubKeyCoseAlgo) {
+    PubKeyCoseAlgo[PubKeyCoseAlgo["ECDSA_WITH_SHA256"] = -7] = "ECDSA_WITH_SHA256";
+})(PubKeyCoseAlgo || (PubKeyCoseAlgo = {}));
+/**
+ * A SignIdentity that uses `navigator.credentials`. See https://webauthn.guide/ for
+ * more information about WebAuthentication.
+ */
+class WebAuthnIdentity extends agent_1.SignIdentity {
+    /**
+     * Create an identity from a JSON serialization.
+     * @param json - json to parse
+     */
+    static fromJSON(json) {
+        const { publicKey, rawId } = JSON.parse(json);
+        if (typeof publicKey !== 'string' || typeof rawId !== 'string') {
+            throw new Error('Invalid JSON string.');
+        }
+        return new this((0, utils_1.hexToBytes)(rawId), (0, utils_1.hexToBytes)(publicKey), undefined);
+    }
+    /**
+     * Create an identity.
+     * @param credentialCreationOptions an optional CredentialCreationOptions Challenge
+     */
+    static async create(credentialCreationOptions) {
+        const creds = await _createCredential(credentialCreationOptions);
+        if (!creds || creds.type !== 'public-key') {
+            throw new Error('Could not create credentials.');
+        }
+        const response = creds.response;
+        if (response.attestationObject === undefined) {
+            throw new Error('Was expecting an attestation response.');
+        }
+        // Parse the attestationObject as CBOR.
+        const attObject = agent_1.Cbor.decode(new Uint8Array(response.attestationObject));
+        return new this((0, candid_1.uint8FromBufLike)(creds.rawId), _authDataToCose(attObject.authData), creds.authenticatorAttachment ?? undefined);
+    }
+    constructor(rawId, cose, authenticatorAttachment) {
+        super();
+        this.rawId = rawId;
+        this.authenticatorAttachment = authenticatorAttachment;
+        this._publicKey = new CosePublicKey(cose);
+    }
+    getPublicKey() {
+        return this._publicKey;
+    }
+    /**
+     * WebAuthn level 3 spec introduces a new attribute on successful WebAuthn interactions,
+     * see https://w3c.github.io/webauthn/#dom-publickeycredential-authenticatorattachment.
+     * This attribute is already implemented for Chrome, Safari and Edge.
+     *
+     * Given the attribute is only available after a successful interaction, the information is
+     * provided opportunistically and might also be `undefined`.
+     */
+    getAuthenticatorAttachment() {
+        return this.authenticatorAttachment;
+    }
+    async sign(blob) {
+        const result = (await navigator.credentials.get({
+            publicKey: {
+                allowCredentials: [
+                    {
+                        type: 'public-key',
+                        id: this.rawId,
+                    },
+                ],
+                challenge: blob,
+                userVerification: 'preferred',
+            },
+        }));
+        if (result.authenticatorAttachment !== null) {
+            this.authenticatorAttachment = result.authenticatorAttachment;
+        }
+        const response = result.response;
+        const encoded = agent_1.Cbor.encode({
+            authenticator_data: response.authenticatorData,
+            client_data_json: (0, utils_1.bytesToUtf8)(new Uint8Array(response.clientDataJSON)),
+            signature: response.signature,
+        });
+        if (!encoded) {
+            throw new Error('failed to encode cbor');
+        }
+        Object.assign(encoded, {
+            __signature__: undefined,
+        });
+        return encoded;
+    }
+    /**
+     * Allow for JSON serialization of all information needed to reuse this identity.
+     */
+    toJSON() {
+        return {
+            publicKey: (0, utils_1.bytesToHex)(this._publicKey.getCose()),
+            rawId: (0, utils_1.bytesToHex)(this.rawId),
+        };
+    }
+}
+exports.WebAuthnIdentity = WebAuthnIdentity;
+//# sourceMappingURL=webauthn.js.map

@@ -152,3 +152,4 @@ public type UserInfo = {
     role : UserRole;
     approval : ApprovalStatus;
 };
+}

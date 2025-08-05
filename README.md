@@ -1,4 +1,3 @@
-TurnX
 TurnX is a decentralized WebRTC coordination and TURN server management layer built on the Internet Computer Protocol (ICP).
 It is developed by Mercatura Labs, backed by Mercatura Forum, with the goal of enabling privacy-preserving, real-time peer-to-peer communication at scale.
 

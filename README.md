@@ -1,29 +1,79 @@
-# Hello, world!
+TurnX
+TurnX is a decentralized WebRTC coordination and TURN server management layer built on the Internet Computer Protocol (ICP).
+It is developed by Mercatura Labs, backed by Mercatura Forum, with the goal of enabling privacy-preserving, real-time peer-to-peer communication at scale.
 
-"Hello, world!" projects are a common starting point for developers learning new languages or platforms, as it provides a simple demonstration of how a programming language can be written for an application.
+Overview
+TurnX enables authenticated users to create and join secure WebRTC rooms with TURN/STUN server integration, persistent room state on-chain, and built-in participant management.
+All room state, signaling data, and TURN usage metrics are stored on the ICP blockchain, ensuring transparency, tamper-resistance, and decentralized control.
 
-This application's logic is written in [Motoko](https://internetcomputer.org/docs/motoko/main/getting-started/motoko-introduction), a programming language designed specifically for developing canisters on ICP.
+TurnX allows anyone to build on a trustless, decentralized environment. Any DAO or dApp that requires trusted video communication can seamlessly tap into TurnX’s infrastructure, which operates as an L2 on ICP for secure, verifiable communications.
 
-## Deploying from ICP Ninja
+Features
+Decentralized Signaling Backend
+All room creation, joining, and SDP/ICE exchange is handled by an ICP canister.
 
-When viewing this project in ICP Ninja, you can deploy it directly to the mainnet for free by clicking "Deploy" in the upper right corner. Open this project in ICP Ninja:
+Persistent Room State
+Uses OrderedMap to store and retrieve room data with consistent ordering and in-place updates.
 
-[![](https://icp.ninja/assets/open.svg)](https://icp.ninja/i?url=https://github.com/dfinity/examples/motoko/hello_world)
+Role & Access Control
+Host and guest roles are enforced; only authorized participants can answer offers or retrieve signaling data.
 
-## Project structure
+Offer/Answer Flow
 
-The `/backend` folder contains the Motoko canister, `app.mo`. The `/frontend` folder contains web assets for the application's user interface. The user interface is written with plain JavaScript, but any frontend framework can be used.
+Host creates a room and sets an offer.
 
-Edit the `mops.toml` file to add [Motoko dependencies](https://mops.one/) to the project.
+Guest joins and sets an answer.
 
+Prevents guests from overwriting host offers.
 
-## Build and deploy from the command-line
+Requires an offer to exist before allowing an answer.
 
-To migrate your ICP Ninja project off of the web browser and develop it locally, follow these steps. These steps are necessary if you want to deploy this project for long-term, production use on the mainnet.
+TURN/STUN Integration
+Supports private TURN servers for NAT traversal while keeping end-to-end encryption.
 
-### 1. Download your project from ICP Ninja using the 'Download files' button on the upper left corner under the pink ninja star icon.
+Multi-User System Integration
+Works alongside Mercatura Labs’ user management module for approvals, roles, and principal-based access.
 
-### 2. Open the `BUILD.md` file for further instructions.
-# TURNX
-# TURNX
-# TURNX
+Debug-Friendly Development
+Detailed Debug.print logs for every key backend operation.
+
+Technical Stack
+Frontend: React + TypeScript with full WebRTC integration.
+
+Backend: Motoko canisters deployed on ICP.
+
+Storage: OrderedMap for in-memory state with stable variable export/import.
+
+Auth: Internet Identity for user authentication.
+
+TURN/STUN: External server integration for connectivity.
+
+Current Development Status
+Migrated backend storage from HashMap to OrderedMap for more predictable state handling.
+
+Updated backend to store room state in-place without breaking frontend calls.
+
+Added checks to prevent role violations in the offer/answer process.
+
+Integrated participant conversion from List<Principal> to arrays for frontend compatibility.
+
+Current Challenge: When a guest joins, getOffer() sometimes returns length: 0.
+Root cause: Host’s offer is not being stored immediately after room creation.
+Next Step: Allow host to set the initial offer as part of the joinRoom() or a dedicated setOffer() function.
+
+Roadmap
+ Fix host offer persistence so joiners always retrieve a valid offer.
+
+ Add ICE candidate storage and retrieval per room.
+
+ Implement TURN provider registry and usage billing.
+
+ Expand to multi-participant rooms.
+
+ Enable end-to-end encrypted chat alongside video/audio.
+
+ Introduce decentralized TURN node incentive system.
+
+About Mercatura Labs
+TurnX is built by Mercatura Labs, the R&D and venture creation arm of Mercatura Forum.
+Mercatura Forum is a Web3-focused venture ecosystem that builds, funds, and scales decentralized applications and infrastructure in MENA and globally

@@ -1,21 +1,28 @@
 import { defineConfig } from 'vite';
 import { fileURLToPath, URL } from 'url';
 import environment from 'vite-plugin-environment';
-import tailwindcss from '@tailwindcss/vite'; // ✅ Add this import
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   base: './',
   plugins: [
-    tailwindcss(), // ✅ Add this plugin
+    tailwindcss(),
     environment('all', { prefix: 'CANISTER_' }),
-    environment('all', { prefix: 'DFX_' }),
-    tailwindcss()
+    environment('all', { prefix: 'DFX_' })
   ],
   envDir: '../',
   define: {
     'process.env': process.env
   },
   optimizeDeps: {
+    include: [
+      '@dfinity/agent',
+      '@dfinity/auth-client',
+      '@dfinity/candid',
+      '@dfinity/identity',
+      '@dfinity/principal',
+      '@dfinity/use-auth-client'
+    ],
     esbuildOptions: {
       define: {
         global: 'globalThis'

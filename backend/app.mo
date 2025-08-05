@@ -10,6 +10,9 @@ import Float "mo:base/Float";
 import Int "mo:base/Int";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
+import Video "video";
+import hash "mo:base/Hash";
+
 
 persistent actor {
     // Initialize the multi-user system state
@@ -80,6 +83,45 @@ public shared ({ caller }) func registerPrincipal(user : Principal) : async Text
         name : Text;
         // Other user's metadata if needed
     };
+
+  transient var videoState = Video.initState();
+
+
+
+
+  // ========== VIDEO MODULE WRAPPERS ==========
+public shared (msg) func createRoom() : async Nat {
+    let roomId = Video.createRoom(videoState, msg.caller); // in-place update
+    return roomId;
+};
+
+public shared (msg) func joinRoom(roomId : Nat, offer : Text) : async Bool {
+    Debug.print(
+        "joinRoom (actor) called by " # Principal.toText(msg.caller) #
+        " for roomId " # Nat.toText(roomId)
+    );
+    return Video.joinRoom(videoState, msg.caller, roomId, offer); // no tuple
+};
+
+public shared (msg) func getOffer(roomId : Nat) : async ?Text {
+    Debug.print(
+        "getOffer (actor) called by " # Principal.toText(msg.caller) #
+        " for roomId " # Nat.toText(roomId)
+    );
+    return Video.getOffer(videoState, msg.caller, roomId);
+};
+
+public shared (msg) func answerOffer(roomId: Nat, answer: Text) : async Bool {
+    Debug.print(
+        "answerOffer (actor) called by " # Principal.toText(msg.caller) #
+        " for roomId " # Nat.toText(roomId)
+    );
+    return Video.answerOffer(videoState, msg.caller, roomId, answer); // no tuple
+};
+
+public shared query (msg) func getAnswer(roomId: Nat) : async ?Text {
+    return Video.getAnswer(videoState, msg.caller, roomId);
+};
 
 
 
@@ -193,21 +235,6 @@ var turnServerUsages = textMap.empty<TurnServerUsage>();
 
 
 
-  public func submitOffer(roomId: Text, offer: Text) : async () {
-    offers := signalMap.put(offers, roomId, offer);
-  };
-
-  public query func getOffer(roomId: Text) : async ?Text {
-    signalMap.get(offers, roomId);
-  };
-
-  public func submitAnswer(roomId: Text, answer: Text) : async () {
-    answers := signalMap.put(answers, roomId, answer);
-  };
-
-  public query func getAnswer(roomId: Text) : async ?Text {
-    signalMap.get(answers, roomId);
-  };
 
 
 
@@ -425,63 +452,10 @@ public shared ({ caller }) func registerUser() : async () {
    var rooms = textMap.empty<Room>();
 
 
-public shared ({ caller }) func createRoom(
-    name : Text,
-    maxParticipants : Nat,
-) : async Room {
 
-    // 1️⃣ Automatically register any signed-in user if not registered
-    if (Principal.isAnonymous(caller)) {
-        Debug.trap("Anonymous users cannot create rooms. Please log in with Internet Identity.");
-    };
 
-    // Initialize user if not already in state
-    MultiUserSystem.initializeAuth(multiUserState, caller);
 
-    // If user has no approval or role yet, grant defaults
-    ignore do {
-        try {
-            let _ = MultiUserSystem.getApprovalStatus(multiUserState, caller);
-        } catch (e) {
-            MultiUserSystem.setApproval(multiUserState, caller, caller, #approved);
-        };
-    };
 
-    ignore do {
-        try {
-            let _ = MultiUserSystem.getUserRole(multiUserState, caller);
-        } catch (e) {
-            MultiUserSystem.assignRole(multiUserState, caller, caller, #user);
-        };
-    };
-
-    // 2️⃣ Skip strict permission trap: allow all approved Internet Identity users
-    if (not MultiUserSystem.hasPermission(multiUserState, caller, #user, false)) {
-        // If permission check fails, still force register user
-        MultiUserSystem.setApproval(multiUserState, caller, caller, #approved);
-        MultiUserSystem.assignRole(multiUserState, caller, caller, #user);
-    };
-
-    // 3️⃣ Create the room
-    let roomId = Text.concat("room_", Int.toText(Time.now()));
-    let roomCode = Text.concat("CODE_", Int.toText(Time.now()));
-    let roomLink = Text.concat("https://turnx.network/room/", roomCode);
-
-    let newRoom : Room = {
-        id = roomId;
-        name = name;
-        code = roomCode;
-        link = roomLink;
-        createdBy = caller;
-        createdAt = Time.now();
-        participants = [caller];
-        isActive = true;
-        maxParticipants = maxParticipants;
-    };
-
-    rooms := textMap.put(rooms, roomId, newRoom);
-    return newRoom;
-};
 
 
    // Chat Management

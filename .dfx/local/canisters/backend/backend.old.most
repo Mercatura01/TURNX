@@ -74,6 +74,7 @@ actor {
   stable var answers : {root : Tree__993059231<Text, Text>; size : Nat};
   stable var billingRecords :
     {root : Tree__993059231<Text, BillingRecord__790946974>; size : Nat};
+  stable var candidates : {root : Tree__993059231<Text, [Text]>; size : Nat};
   stable var chatMessages :
     {root : Tree__993059231<Text, ChatMessage__319796390>; size : Nat};
   stable multiUserState :

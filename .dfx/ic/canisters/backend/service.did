@@ -39,18 +39,6 @@ type TurnProvider =
    url: text;
  };
 type Time = int;
-type Room = 
- record {
-   code: text;
-   createdAt: Time;
-   createdBy: principal;
-   id: text;
-   isActive: bool;
-   link: text;
-   maxParticipants: nat;
-   name: text;
-   participants: vec principal;
- };
 type ChatMessage = 
  record {
    id: text;
@@ -79,21 +67,23 @@ type ApprovalStatus =
    rejected;
  };
 service : {
+  answerOffer: (roomId: nat, answer: text) -> (bool);
   assignRole: (user: principal, newRole: UserRole) -> ();
-  createRoom: (name: text, maxParticipants: nat) -> (Room);
+  createRoom: () -> (nat);
   getAllTurnProviders: () -> (vec TurnProvider) query;
   getAllTurnServerUsages: () -> (vec TurnServerUsage) query;
-  getAnswer: (roomId: text) -> (opt text) query;
+  getAnswer: (roomId: nat) -> (opt text) query;
   getApprovalStatus: () -> (ApprovalStatus) query;
   getBillingRecords: () -> (vec BillingRecord) query;
   getCandidates: (roomId: text) -> (vec text) query;
   getCurrentUserRole: () -> (UserRole) query;
-  getOffer: (roomId: text) -> (opt text) query;
+  getOffer: (roomId: nat) -> (opt text);
   getRoomMessages: (roomId: text) -> (vec ChatMessage) query;
   getTurnServerUsage: (sessionId: text) -> (opt TurnServerUsage) query;
   getUserProfile: () -> (opt UserProfile) query;
   initializeAuth: () -> ();
   isCurrentUserAdmin: () -> (bool) query;
+  joinRoom: (roomId: nat, offer: text) -> (bool);
   listUsers: () -> (vec UserInfo) query;
   logTurnServerUsage: (serverUrl: text, sessionId: text) -> ();
   recordBilling: (sessionId: text, providerId: text, startTime: Time,
@@ -105,7 +95,5 @@ service : {
   saveUserProfile: (profile: UserProfile) -> ();
   sendMessage: (roomId: text, message: text) -> ();
   setApproval: (user: principal, approval: ApprovalStatus) -> ();
-  submitAnswer: (roomId: text, answer: text) -> ();
   submitCandidate: (roomId: text, candidate: text) -> ();
-  submitOffer: (roomId: text, offer: text) -> ();
 }

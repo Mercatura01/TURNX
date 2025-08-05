@@ -24,17 +24,6 @@ export interface ChatMessage {
   'timestamp' : Time,
   'roomId' : string,
 }
-export interface Room {
-  'id' : string,
-  'participants' : Array<Principal>,
-  'code' : string,
-  'link' : string,
-  'name' : string,
-  'createdAt' : Time,
-  'createdBy' : Principal,
-  'isActive' : boolean,
-  'maxParticipants' : bigint,
-}
 export type Time = bigint;
 export interface TurnProvider {
   'id' : string,
@@ -71,21 +60,23 @@ export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
 export interface _SERVICE {
+  'answerOffer' : ActorMethod<[bigint, string], boolean>,
   'assignRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'createRoom' : ActorMethod<[string, bigint], Room>,
+  'createRoom' : ActorMethod<[], bigint>,
   'getAllTurnProviders' : ActorMethod<[], Array<TurnProvider>>,
   'getAllTurnServerUsages' : ActorMethod<[], Array<TurnServerUsage>>,
-  'getAnswer' : ActorMethod<[string], [] | [string]>,
+  'getAnswer' : ActorMethod<[bigint], [] | [string]>,
   'getApprovalStatus' : ActorMethod<[], ApprovalStatus>,
   'getBillingRecords' : ActorMethod<[], Array<BillingRecord>>,
   'getCandidates' : ActorMethod<[string], Array<string>>,
   'getCurrentUserRole' : ActorMethod<[], UserRole>,
-  'getOffer' : ActorMethod<[string], [] | [string]>,
+  'getOffer' : ActorMethod<[bigint], [] | [string]>,
   'getRoomMessages' : ActorMethod<[string], Array<ChatMessage>>,
   'getTurnServerUsage' : ActorMethod<[string], [] | [TurnServerUsage]>,
   'getUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'initializeAuth' : ActorMethod<[], undefined>,
   'isCurrentUserAdmin' : ActorMethod<[], boolean>,
+  'joinRoom' : ActorMethod<[bigint, string], boolean>,
   'listUsers' : ActorMethod<[], Array<UserInfo>>,
   'logTurnServerUsage' : ActorMethod<[string, string], undefined>,
   'recordBilling' : ActorMethod<
@@ -101,9 +92,7 @@ export interface _SERVICE {
   'saveUserProfile' : ActorMethod<[UserProfile], undefined>,
   'sendMessage' : ActorMethod<[string, string], undefined>,
   'setApproval' : ActorMethod<[Principal, ApprovalStatus], undefined>,
-  'submitAnswer' : ActorMethod<[string, string], undefined>,
   'submitCandidate' : ActorMethod<[string, string], undefined>,
-  'submitOffer' : ActorMethod<[string, string], undefined>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

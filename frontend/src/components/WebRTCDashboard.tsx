@@ -1,10 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Video, VideoOff, Mic, MicOff, Maximize, Minimize, Copy, Send } from 'lucide-react';
-import type { Room, ChatMessage, _SERVICE } from '../../../src/declarations/backend/backend.did';
+import type { ChatMessage, _SERVICE } from '../../../src/declarations/backend/backend.did';
 import type { ActorSubclass } from '@dfinity/agent';
 
 interface CallInterfaceProps {
-  backend: ActorSubclass<_SERVICE>; // ✅ Authenticated backend actor passed as prop
+  backend: ActorSubclass<_SERVICE>; 
+  turnConfig: RTCConfiguration;
+  callMode: 'join' | 'start';  // ✅ Add this line
+  callId: string;              // ✅ Ensure this is also defined
+  onEndCall: () => void;       // ✅ If used
+  // ✅ Authenticated actor passed as prop
 }
 
 function CallInterface({ backend }: CallInterfaceProps) {
@@ -33,7 +38,6 @@ function CallInterface({ backend }: CallInterfaceProps) {
     ]
   };
 
-  // --- Setup Camera/Mic ---
   useEffect(() => {
     const setupMedia = async () => {
       try {
@@ -47,104 +51,154 @@ function CallInterface({ backend }: CallInterfaceProps) {
       }
     };
     setupMedia();
-
     return () => {
       localStream?.getTracks().forEach(track => track.stop());
     };
   }, []);
 
-  // --- Create Room ---
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const roomIdFromQuery = url.searchParams.get("roomId");
+    if (roomIdFromQuery && roomIdFromQuery.startsWith("CODE_")) {
+      setRoomId(roomIdFromQuery);
+      initConnection(roomIdFromQuery, false);
+    }
+  }, []);
+
   const createRoom = async () => {
-    if (!localStream) return;
+    if (!localStream) {
+      console.warn("❌ No localStream — cannot create room.");
+      return;
+    }
     try {
+      console.log("📡 Calling backend.createRoom()...");
       setLoading(true);
-      const room: Room = await backend.createRoom("TURNX Meeting", BigInt(5));
-      setRoomId(room.id);
-      setRoomLink(room.link);
-      initConnection(room.id, true);
+  
+      const roomId = await backend.createRoom();
+      console.log("✅ Room created with ID:", roomId.toString());
+  
+      setRoomId(roomId.toString());
+      setRoomLink(`${window.location.origin}?roomId=${roomId.toString()}`);
+  
+      console.log("🚀 Initializing connection as room creator...");
+      initConnection(roomId.toString(), true);
+  
     } catch (err) {
-      console.error("Error creating room:", err);
-      alert("❌ Could not create room. Make sure you are logged in with Internet Identity.");
+      console.error("❌ Error creating room:", err);
+      alert("Could not create room. Make sure you are logged in with Internet Identity.");
     } finally {
       setLoading(false);
     }
   };
-
-  // --- Join Room ---
+  
   const joinRoom = async () => {
     const id = prompt("Enter Room ID to join") || '';
     if (id.trim()) {
+      console.log("🔗 Joining existing room:", id);
       setRoomId(id);
       initConnection(id, false);
+    } else {
+      console.warn("⚠️ No room ID entered.");
     }
   };
-
-  // --- Initialize WebRTC Connection ---
   const initConnection = async (id: string, isCreator: boolean) => {
-    if (!localStream) return;
-
+    if (!localStream) {
+      console.warn("❌ No localStream — cannot start connection.");
+      return;
+    }
+  
+    console.log(`📡 Setting up RTCPeerConnection for room ${id}, creator: ${isCreator}`);
     const pc = new RTCPeerConnection(turnConfig);
     setPeerConnection(pc);
-
-    // Add local tracks
-    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-
-    // Handle remote streams
+  
+    localStream.getTracks().forEach(track => {
+      console.log(`🎥 Adding local track: ${track.kind}`);
+      pc.addTrack(track, localStream);
+    });
+  
     pc.ontrack = e => {
+      console.log("📺 Remote track received:", e.streams[0]);
       if (e.streams[0] && !remoteStreams.includes(e.streams[0])) {
         setRemoteStreams(prev => [...prev, e.streams[0]]);
       }
     };
-
-    // Handle ICE candidates
+  
     pc.onicecandidate = async (event) => {
       if (event.candidate) {
-        await backend.submitCandidate(id, btoa(JSON.stringify(event.candidate)));
+        console.log("🧊 ICE candidate found:", event.candidate);
+      } else {
+        console.log("🧊 ICE gathering complete.");
       }
     };
-
+  
+    pc.oniceconnectionstatechange = () => {
+      console.log("🔄 ICE connection state:", pc.iceConnectionState);
+    };
+  
+    pc.onconnectionstatechange = () => {
+      console.log("🌐 Peer connection state:", pc.connectionState);
+    };
+  
     try {
       if (isCreator) {
+        console.log("📜 Creating offer...");
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        await backend.submitOffer(id, btoa(JSON.stringify(offer)));
-      } else {
-        const offerOpt = await backend.getOffer(id);
-        if (offerOpt.length === 0) {
-          console.warn("No offer found for room:", id);
+        console.log("📤 Sending offer to backend.joinRoom:", id, offer);
+  
+        const success = await backend.joinRoom(BigInt(id), btoa(JSON.stringify(offer)));
+        console.log("joinRoom() success:", success);
+  
+        if (!success) {
+          console.error("❌ Failed to submit offer to backend.");
           return;
         }
-        const offer = JSON.parse(atob(offerOpt[0]));
+      } else {
+        console.log("📥 Fetching offer from backend.getOffer for room:", id);
+        const offerOpt = await backend.getOffer(BigInt(id));
+        console.log("getOffer() returned length:", offerOpt.length);
+  
+        if (!offerOpt.length) {
+          console.warn("⚠️ No offer found for room:", id);
+          return;
+        }
+  
+        const offerStr = offerOpt[0];
+        const offer = JSON.parse(atob(offerStr));
+        console.log("✅ Offer received, setting as remote description...");
         await pc.setRemoteDescription(offer);
-
+  
+        console.log("📜 Creating answer...");
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        await backend.submitAnswer(id, btoa(JSON.stringify(answer)));
+        console.log("📤 Sending answer to backend.answerOffer:", answer);
+  
+        const success = await backend.answerOffer(BigInt(id), btoa(JSON.stringify(answer)));
+        console.log("answerOffer() success:", success);
+  
+        if (!success) {
+          console.error("❌ Failed to submit answer to backend.");
+          return;
+        }
       }
-
-      // Poll for answer and candidates
+  
+      console.log("🔄 Starting poll interval for answer retrieval...");
       const pollInterval = setInterval(async () => {
-        const answerOpt = await backend.getAnswer(id);
-        if (answerOpt.length > 0 && !pc.currentRemoteDescription) {
+        const answerOpt = await backend.getAnswer(BigInt(id));
+        if (answerOpt.length && !pc.currentRemoteDescription) {
+          console.log("📥 Answer found, applying remote description...");
           const answer = JSON.parse(atob(answerOpt[0]));
           await pc.setRemoteDescription(answer);
         }
-
-        const candidates = await backend.getCandidates(id);
-        for (const c of candidates) {
-          try {
-            await pc.addIceCandidate(JSON.parse(atob(c)));
-          } catch {}
-        }
       }, 2000);
-
+  
       return () => clearInterval(pollInterval);
     } catch (err) {
-      console.error("Error during connection setup:", err);
+      console.error("❌ Error during connection setup:", err);
     }
   };
-
-  // --- Messaging ---
+  
+  
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
     await backend.sendMessage(roomId, newMessage);
@@ -166,7 +220,6 @@ function CallInterface({ backend }: CallInterfaceProps) {
     }
   }, [roomId]);
 
-  // --- UI controls ---
   const toggleMute = () => {
     if (localStream) {
       const track = localStream.getAudioTracks()[0];
@@ -192,7 +245,6 @@ function CallInterface({ backend }: CallInterfaceProps) {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white flex">
-      {/* Sidebar */}
       <div className="w-1/4 bg-gray-800 p-4 flex flex-col space-y-4 border-r border-gray-700">
         <button onClick={createRoom} className="bg-green-600 px-4 py-2 rounded hover:bg-green-700">
           {loading ? 'Creating...' : '+ Create Room'}
@@ -207,7 +259,6 @@ function CallInterface({ backend }: CallInterfaceProps) {
         )}
       </div>
 
-      {/* Main Video Area */}
       <div className="flex-1 p-4 flex flex-col">
         <div className={`relative bg-black rounded-xl overflow-hidden grid grid-cols-2 gap-2 ${isFullscreen ? 'w-full h-[85vh]' : 'w-full h-[60vh]'}`}>
           <video ref={localVideoRef} muted autoPlay playsInline className="object-cover w-full h-full border-2 border-green-500" />
@@ -234,7 +285,6 @@ function CallInterface({ backend }: CallInterfaceProps) {
           </button>
         </div>
 
-        {/* Chat Box */}
         {roomId && (
           <div className="bg-gray-800 mt-4 p-3 rounded-lg flex flex-col h-48">
             <div className="flex-1 overflow-y-auto space-y-2">

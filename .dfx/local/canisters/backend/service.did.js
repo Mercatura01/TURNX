@@ -5,17 +5,6 @@ export const idlFactory = ({ IDL }) => {
     'guest' : IDL.Null,
   });
   const Time = IDL.Int;
-  const Room = IDL.Record({
-    'id' : IDL.Text,
-    'participants' : IDL.Vec(IDL.Principal),
-    'code' : IDL.Text,
-    'link' : IDL.Text,
-    'name' : IDL.Text,
-    'createdAt' : Time,
-    'createdBy' : IDL.Principal,
-    'isActive' : IDL.Bool,
-    'maxParticipants' : IDL.Nat,
-  });
   const TurnProvider = IDL.Record({
     'id' : IDL.Text,
     'url' : IDL.Text,
@@ -72,20 +61,26 @@ export const idlFactory = ({ IDL }) => {
     'approval' : ApprovalStatus,
   });
   return IDL.Service({
+    'answerOffer' : IDL.Func([IDL.Nat, IDL.Text], [IDL.Bool], []),
     'assignRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'createRoom' : IDL.Func([IDL.Text, IDL.Nat], [Room], []),
+    'createRoom' : IDL.Func([], [IDL.Nat], []),
     'getAllTurnProviders' : IDL.Func([], [IDL.Vec(TurnProvider)], ['query']),
     'getAllTurnServerUsages' : IDL.Func(
         [],
         [IDL.Vec(TurnServerUsage)],
         ['query'],
       ),
-    'getAnswer' : IDL.Func([IDL.Text], [IDL.Opt(IDL.Text)], ['query']),
+    'getAnswer' : IDL.Func([IDL.Nat], [IDL.Opt(IDL.Text)], ['query']),
     'getApprovalStatus' : IDL.Func([], [ApprovalStatus], ['query']),
     'getBillingRecords' : IDL.Func([], [IDL.Vec(BillingRecord)], ['query']),
     'getCandidates' : IDL.Func([IDL.Text], [IDL.Vec(IDL.Text)], ['query']),
     'getCurrentUserRole' : IDL.Func([], [UserRole], ['query']),
-    'getOffer' : IDL.Func([IDL.Text], [IDL.Opt(IDL.Text)], ['query']),
+    'getOffer' : IDL.Func([IDL.Nat], [IDL.Opt(IDL.Text)], ['query']),
+    'getParticipants' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Opt(IDL.Vec(IDL.Principal))],
+        ['query'],
+      ),
     'getRoomMessages' : IDL.Func([IDL.Text], [IDL.Vec(ChatMessage)], ['query']),
     'getTurnServerUsage' : IDL.Func(
         [IDL.Text],
@@ -95,6 +90,7 @@ export const idlFactory = ({ IDL }) => {
     'getUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'initializeAuth' : IDL.Func([], [], []),
     'isCurrentUserAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'joinRoom' : IDL.Func([IDL.Nat, IDL.Text], [IDL.Bool], []),
     'listUsers' : IDL.Func([], [IDL.Vec(UserInfo)], ['query']),
     'logTurnServerUsage' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'recordBilling' : IDL.Func(
@@ -120,9 +116,7 @@ export const idlFactory = ({ IDL }) => {
     'saveUserProfile' : IDL.Func([UserProfile], [], []),
     'sendMessage' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'setApproval' : IDL.Func([IDL.Principal, ApprovalStatus], [], []),
-    'submitAnswer' : IDL.Func([IDL.Text, IDL.Text], [], []),
     'submitCandidate' : IDL.Func([IDL.Text, IDL.Text], [], []),
-    'submitOffer' : IDL.Func([IDL.Text, IDL.Text], [], []),
   });
 };
 export const init = ({ IDL }) => { return []; };

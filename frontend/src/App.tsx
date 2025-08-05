@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { AuthClient } from '@dfinity/auth-client';
-import { HttpAgent } from '@dfinity/agent';
-import type { Identity } from '@dfinity/agent';
+import { HttpAgent, Identity, ActorSubclass } from '@dfinity/agent';
+import { createActor, canisterId as backend_id } from '../../src/declarations/backend';
+
 import WebRTCDashboard from './components/WebRTCDashBoard';
 import AdminDashboard from './components/AdminDashboard';
 import ConnectionsManager from './components/ConnectionsManager';
@@ -9,28 +10,39 @@ import RandomChatMode from './components/RandomChatMode';
 import OnboardingGuide from './components/OnboardingGuide';
 import DAOGovernance from './components/DAOGovernance';
 import ProviderDashboard from './components/ProviderDashboard';
+
 import { Users, Video, UserPlus, Shuffle, BookOpen, Vote, Server, LogOut } from 'lucide-react';
+import type { _SERVICE } from '../../src/declarations/backend/backend.did';
 
 function App() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [agent, setAgent] = useState<HttpAgent | null>(null);
   const [authClient, setAuthClient] = useState<AuthClient | null>(null);
+  const [backendActor, setBackendActor] = useState<ActorSubclass<_SERVICE> | null>(null);
   const [activeTab, setActiveTab] = useState<'landing' | string>('landing');
+  const [roomIdFromURL, setRoomIdFromURL] = useState<string | null>(null);
 
   const HARDCODED_ADMIN = "jl3ck-2cds7-rddbn-ww2i7-uo3ti-huzcp-5p673-miyae-vc22n-nzkna-2qe";
 
-  // Initialize Internet Identity
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    setRoomIdFromURL(urlParams.get('roomId'));
+  }, []);
+
   useEffect(() => {
     const initAuth = async () => {
       const client = await AuthClient.create();
       setAuthClient(client);
-      const isAuthenticated = await client.isAuthenticated();
-      if (isAuthenticated) {
+
+      if (await client.isAuthenticated()) {
         const id = client.getIdentity();
         const ag = new HttpAgent({ identity: id });
+        if (process.env.DFX_NETWORK !== 'ic') {
+          await ag.fetchRootKey();
+        }
         setIdentity(id);
         setAgent(ag);
-        setActiveTab('landing'); // ✅ Show landing after login
+        setBackendActor(createActor(backend_id, { agent: ag }));
       }
     };
     initAuth();
@@ -43,9 +55,12 @@ function App() {
       onSuccess: async () => {
         const id = authClient.getIdentity();
         const ag = new HttpAgent({ identity: id });
+        if (process.env.DFX_NETWORK !== 'ic') {
+          await ag.fetchRootKey();
+        }
         setIdentity(id);
         setAgent(ag);
-        setActiveTab('landing');
+        setBackendActor(createActor(backend_id, { agent: ag }));
       },
     });
   };
@@ -55,7 +70,7 @@ function App() {
       await authClient.logout();
       setIdentity(null);
       setAgent(null);
-      setActiveTab('landing');
+      setBackendActor(null);
     }
   };
 
@@ -67,7 +82,6 @@ function App() {
   const principalText = identity?.getPrincipal().toText();
   const isAdmin = principalText === HARDCODED_ADMIN;
 
-  // Tabs (shown only after login)
   const tabs = [
     { id: 'webrtc', label: 'WebRTC', icon: Video },
     { id: 'connections', label: 'Connections', icon: UserPlus },
@@ -78,14 +92,10 @@ function App() {
     ...(isAdmin ? [{ id: 'admin', label: 'Admin', icon: Users }] : []),
   ];
 
-  // ✅ Show Login screen if not authenticated
-  if (!identity) {
+  if (!identity || !backendActor) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 text-gray-800 flex items-center justify-center">
-        <button
-          onClick={login}
-          className="px-6 py-3 bg-green-600 text-white rounded-full font-semibold shadow hover:bg-green-700"
-        >
+      <div className="min-h-screen flex items-center justify-center">
+        <button disabled={!authClient} onClick={login} className="px-6 py-3 bg-green-600 text-white rounded-full">
           Login with Internet Identity
         </button>
       </div>
@@ -95,74 +105,40 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 text-gray-800">
       <div className="flex justify-between items-center p-4 bg-white shadow-sm border-b">
-        <nav className="flex space-x-2 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('landing')}
-            className={`flex items-center space-x-1 px-4 py-2 rounded-full font-medium ${
-              activeTab === 'landing'
-                ? 'bg-green-100 text-green-700 border border-green-300'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-          >
-            🏠 <span>Home</span>
+        <nav className="flex space-x-2 overflow-x-auto whitespace-nowrap w-full px-2 sm:px-0">
+          <button onClick={() => setActiveTab('landing')} className={`px-4 py-2 rounded-full ${activeTab === 'landing' ? 'bg-green-100 text-green-700 border' : ''}`}>
+            🏠 Home
           </button>
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center space-x-1 px-4 py-2 rounded-full font-medium ${
-                  activeTab === tab.id
-                    ? 'bg-green-100 text-green-700 border border-green-300'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{tab.label}</span>
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-4 py-2 rounded-full ${activeTab === tab.id ? 'bg-green-100 text-green-700 border' : ''}`}>
+                <Icon className="h-4 w-4" /> {tab.label}
               </button>
             );
           })}
         </nav>
-
         <div className="flex items-center space-x-2">
-          <span className="text-sm text-gray-500 max-w-[250px] truncate">{principalText}</span>
-          <button
-            onClick={copyPrincipal}
-            className="px-2 py-1 text-xs bg-gray-200 hover:bg-gray-300 rounded"
-          >
-            Copy
-          </button>
-          <button
-            onClick={logout}
-            className="px-2 py-1 text-xs bg-red-200 hover:bg-red-300 rounded flex items-center space-x-1"
-          >
-            <LogOut size={14} /> <span>Logout</span>
+          <span className="text-sm">{principalText}</span>
+          <button onClick={copyPrincipal} className="px-2 py-1 text-xs bg-gray-200 rounded">Copy</button>
+          <button onClick={logout} className="px-2 py-1 text-xs bg-red-200 rounded flex items-center space-x-1">
+            <LogOut size={14} /> Logout
           </button>
         </div>
       </div>
 
       <div className="p-4">
-        {activeTab === 'landing' && (
-          <div className="text-center mt-20">
-            <h1 className="text-3xl font-bold text-green-700 mb-4">Welcome to TURNX</h1>
-            <p className="text-gray-600 mb-6">
-              Select a feature from the top navigation to start a call, manage connections, or explore other tools.
-            </p>
-            <p className="text-gray-500 text-sm">
-              Logged in as: {principalText}
-            </p>
-          </div>
-        )}
+        {activeTab === 'landing' && <p className="text-center mt-20">Welcome to TURNX</p>}
         {activeTab === 'webrtc' && (
           <WebRTCDashboard
+            backend={backendActor}
             turnConfig={{
-              url: 'stun:stun.l.google.com:19302',
-              username: '',
-              password: ''
+              iceServers: [
+                { urls: 'turn:194.31.150.154:3478?transport=udp', username: 'turnx', credential: '1234' }
+              ],
             }}
-            callMode="start"
-            callId="12345"
+            callMode={roomIdFromURL ? 'join' : 'start'}
+            callId={roomIdFromURL ?? ''}
             onEndCall={() => console.log('Call ended')}
           />
         )}
